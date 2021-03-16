@@ -1,7 +1,6 @@
 package com.project.Order.controller;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +20,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
-import com.google.gson.Gson;
-
 
 @RestController
 @CrossOrigin
@@ -38,8 +34,6 @@ public class OrderController {
 	OrderService orderService;
 	@Autowired
 	OrderRepository orderRepository;
-    @Autowired
-    private Gson gson;
 	
 	@Value("${userUrl}")
 	public String userUrl;
@@ -71,14 +65,15 @@ public class OrderController {
 		String carturl = userUrl+"getcart/{buyerid}";
 		String producturl = productUrl+"productid/{prodid}";
 		CartDTO cartDTOs[] = restTemplate.getForObject(carturl, CartDTO[].class, buyerid);
-        
 		double amount = 0.0;
 		for (CartDTO cartDTO2 : cartDTOs) {
 			int prodid = cartDTO2.getPRODID();
 			ProductDTO productDTO = restTemplate.getForObject(producturl, ProductDTO.class, prodid);
 			int price = (int) productDTO.getPRICE();
 			int quantity = cartDTO2.getQUANTITY();
-			
+			System.out.println("Quantity:"+quantity);
+			System.out.println("Stock:"+productDTO.getSTOCK());
+			System.out.println("Amount:"+amount);
 			amount += (price*quantity);
 			if(quantity>=productDTO.getSTOCK()) {
 				flag=1;
@@ -92,6 +87,7 @@ public class OrderController {
 		}
 			
 		BuyerDTO buyerDTO = restTemplate.getForObject(userUrl+"buyer/{buyerid}", BuyerDTO.class, buyerid);
+		System.out.println(buyerDTO.getRewardPoints());
 		double rewardpoints = buyerDTO.getRewardPoints();
 		
 		
@@ -99,6 +95,7 @@ public class OrderController {
 			amount = amount - rewardpoints/4;
 			rewardpoints = 0;
 		}
+		System.out.println(amount);
 		ResponseEntity<String> response=null;
 		
 		//Save to Order details table
@@ -107,7 +104,7 @@ public class OrderController {
 			neworderdetailsDTO.setBUYERID(orderdetailsDTO.getBUYERID());
 			neworderdetailsDTO.setADDRESS(orderdetailsDTO.getADDRESS());
 			neworderdetailsDTO.setAMOUNT(amount);
-			neworderdetailsDTO.setDATE(LocalDate.now());
+			neworderdetailsDTO.setDate(LocalDate.now());
 			neworderdetailsDTO.setSTATUS("ORDER PLACED");
 			int updatedRewards = (int) ((amount/100));
 			BuyerDTO buyerDTO1 = new BuyerDTO();
@@ -136,13 +133,6 @@ public class OrderController {
 		
 	}
 	
-	//reorder an order
-	@PostMapping(value="/api/reOrder/{buyerid}/{orderid}")
-	public String reorder(@PathVariable Integer buyerid,@PathVariable Integer orderid)
-	{
-		return orderService.reOrder(orderid, buyerid);
-	}
-	
 	//Fetch Order details including list of all products ordered in that particular order
 	@GetMapping(value="/api/orderdetails/{orderid}")
 	public OrderdetailsDTO getOrderDetails(@PathVariable Integer orderid) 
@@ -151,12 +141,5 @@ public class OrderController {
 		return orderService.getOrderDetails(orderid);
 		
 	}
-	
-	@KafkaListener(topics = { "newtopic" })
-    public void getTopics(@RequestBody String cart) {
-        CartDTO cartDTO = gson.fromJson(cart, CartDTO.class);
-        System.out.println("BuyerId : "+cartDTO.getBUYERID()+" "+"ProductId : "+cartDTO.getPRODID()+" "+ "Quantity : " +cartDTO.getQUANTITY());
-    }
-	
 	
 }
